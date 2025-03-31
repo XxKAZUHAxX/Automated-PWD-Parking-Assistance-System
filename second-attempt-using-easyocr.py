@@ -84,7 +84,15 @@ while cap.isOpened():
                 # Crop the license plate region from the frame.
                 lp_crop = frame[int(y1_lp):int(y2_lp), int(x1_lp):int(x2_lp)]
                 # Run OCR on the cropped license plate image using EasyOCR.
-                ocr_results = reader.readtext(lp_crop, detail=0)  # detail=0 returns only the text
+
+                # process license plate
+                license_plate_crop_gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
+                _, license_plate_crop_thresh = cv2.threshold(license_plate_crop_gray, 100, 255, cv2.THRESH_BINARY_INV)
+
+                cv2.imshow("Morphological Operator Peek", license_plate_crop_thresh)
+                cv2.waitKey(0)
+
+                ocr_results = reader.readtext(license_plate_crop_thresh, detail=0)  # detail=0 returns only the text
                 plate_text = ocr_results[0].strip() if ocr_results else ""
 
                 # Save the results for this tracked vehicle.
