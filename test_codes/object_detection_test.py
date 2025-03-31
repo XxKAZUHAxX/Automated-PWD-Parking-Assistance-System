@@ -2,10 +2,10 @@ from ultralytics import YOLO
 import cv2
 
 # load models
-coco_model = YOLO('weights/yolov8n.pt')
+coco_model = YOLO('../weights/yolov8n.pt')
 
 # load video
-cap = cv2.VideoCapture('video/sample.mp4')
+cap = cv2.VideoCapture('../video/sample.mp4')
 
 vehicles = [2, 3, 5, 7]
 
