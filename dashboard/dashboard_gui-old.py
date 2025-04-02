@@ -6,7 +6,7 @@ class DashboardApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Dashboard")
-        self.geometry("800x400")
+        self.geometry("500x400")
 
         # Create a main container to hold the sidebar and the content area
         container = tk.Frame(self)
