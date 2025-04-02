@@ -8,11 +8,11 @@ reader = easyocr.Reader(['en'], gpu=False)  # Set gpu=True if you have a compati
 # Load models:
 # - The vehicle model (using YOLOv8 trained on COCO)
 # - The license plate detector (a custom-trained YOLOv8 model)
-vehicle_model = YOLO('weights/yolov8n.pt')
-license_plate_detector = YOLO('weights/license_plate_detector.pt')
+vehicle_model = YOLO('../weights/yolov8n.pt')
+license_plate_detector = YOLO('../weights/license_plate_detector.pt')
 
 # Open video file
-cap = cv2.VideoCapture('video/sample.mp4')
+cap = cv2.VideoCapture('../video/sample.mp4')
 
 # Define the vehicle classes of interest (e.g., car, motorcycle, bus, truck)
 vehicles = [2, 3, 5, 7]
@@ -20,24 +20,15 @@ vehicles = [2, 3, 5, 7]
 # This dictionary will store our results per frame
 results = {}
 
-frame_nmr = -1
-
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
-    frame_nmr += 1
-    results[frame_nmr] = {}
-
     # ------------------------------
     # 1. Track vehicles using YOLOv8 track API
     # ------------------------------
-    # Calling track() with persist=True will return tracked objects with IDs across frames.
     track_results = vehicle_model.track(frame, persist=True)
 
-    # The first element of track_results contains our detections for this frame.
-    # Use .boxes.data.tolist() to extract bounding box info.
-    # Expected format per detection: [x1, y1, x2, y2, track_id, class, score]
     if len(track_results) > 0:
         vehicle_detections = track_results[0].boxes.data.tolist()
     else:
@@ -87,20 +78,9 @@ while cap.isOpened():
 
                 # process license plate
                 license_plate_crop_gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
-                _, license_plate_crop_thresh = cv2.threshold(license_plate_crop_gray, 100, 255, cv2.THRESH_BINARY_INV)
 
-                cv2.imshow("Morphological Operator Peek", license_plate_crop_thresh)
-                cv2.waitKey(0)
-
-                ocr_results = reader.readtext(license_plate_crop_thresh, detail=0)  # detail=0 returns only the text
+                ocr_results = reader.readtext(license_plate_crop_gray, detail=0)  # detail=0 returns only the text
                 plate_text = ocr_results[0].strip() if ocr_results else ""
-
-                # Save the results for this tracked vehicle.
-                results[frame_nmr][f'vehicle_{int(track_id)}'] = {
-                    'vehicle_bbox': [x1, y1, x2, y2],
-                    'license_plate_bbox': [x1_lp, y1_lp, x2_lp, y2_lp],
-                    'plate_text': plate_text
-                }
 
                 # Draw the license plate bounding box (red) and overlay the OCR result (blue).
                 cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
@@ -108,14 +88,6 @@ while cap.isOpened():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
                 # Once a matching license plate is found, exit the loop.
                 break
-
-        # If no license plate was found, store only the vehicle bounding box.
-        if not plate_associated:
-            results[frame_nmr][f'vehicle_{int(track_id)}'] = {
-                'vehicle_bbox': [x1, y1, x2, y2],
-                'license_plate_bbox': None,
-                'plate_text': None
-            }
 
     # ------------------------------
     # 4. Display the annotated frame

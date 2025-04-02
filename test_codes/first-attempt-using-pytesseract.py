@@ -5,11 +5,11 @@ import pytesseract
 # Load models:
 # - The vehicle model (using YOLOv8 trained on COCO)
 # - The license plate detector (a custom-trained YOLOv8 model)
-vehicle_model = YOLO('weights/yolov8n.pt')
-license_plate_detector = YOLO('weights/license_plate_detector.pt')
+vehicle_model = YOLO('../weights/yolov8n.pt')
+license_plate_detector = YOLO('../weights/license_plate_detector.pt')
 
 # Open video file
-cap = cv2.VideoCapture('video/sample.mp4')
+cap = cv2.VideoCapture('../video/sample.mp4')
 
 # Define the vehicle classes of interest (e.g., car, motorcycle, bus, truck)
 vehicles = [2, 3, 5, 7]

@@ -6,14 +6,14 @@ import numpy as np
 # Load models:
 # - Vehicle model (YOLOv8 trained on COCO)
 # - License plate detector (custom YOLOv8 model)
-vehicle_model = YOLO('weights/yolov8n.pt')
-license_plate_detector = YOLO('weights/license_plate_detector.pt')
+vehicle_model = YOLO('../weights/yolov8n.pt')
+license_plate_detector = YOLO('../weights/license_plate_detector.pt')
 
 # Initialize EasyOCR reader (set the language as needed, e.g., 'en' for English)
 reader = easyocr.Reader(['en'], gpu=False)
 
 # Open video file
-cap = cv2.VideoCapture('video/sample.mp4')
+cap = cv2.VideoCapture('../video/sample.mp4')
 
 # Define vehicle classes of interest (e.g., car, motorcycle, bus, truck)
 vehicles = [2, 3, 5, 7]
@@ -81,7 +81,7 @@ while cap.isOpened():
                 # Convert to grayscale.
                 gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
                 # Apply bilateral filter to reduce noise while preserving edges.
-                gray = cv2.bilateralFilter(gray, 11, 17, 17)
+                gray = cv2.bilateralFilter(gray, 10, 10, 17)
                 # Use Canny edge detection.
                 edges = cv2.Canny(gray, 30, 200)
                 # Create a kernel for morphological operations.
@@ -90,6 +90,8 @@ while cap.isOpened():
                 closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
                 # Dilate the result to accentuate text outlines.
                 processed_lp = cv2.dilate(closed, kernel, iterations=1)
+                cv2.imshow("Morphological Operator Peek", processed_lp)
+                cv2.waitKey(0)
 
                 # ------------------------------
                 # 5. Extract text using EasyOCR
