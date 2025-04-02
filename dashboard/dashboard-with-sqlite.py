@@ -234,5 +234,5 @@ class RegisterPage(ttk.Frame):
 
 
 if __name__ == "__main__":
-    app = DashboardApp(theme="flatly")  # Try different themes like 'darkly', 'journal', etc.
+    app = DashboardApp(theme="darkly")  # Try different themes like 'darkly', 'journal', etc.
     app.mainloop()
