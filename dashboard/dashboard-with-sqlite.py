@@ -4,7 +4,6 @@ import threading
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import StringVar, messagebox
-# Import the vehicle recognition system from the separate file.
 from LicensePlateRecognitionSystem import VehicleLicensePlateSystem
 
 working_dir = os.getcwd()
