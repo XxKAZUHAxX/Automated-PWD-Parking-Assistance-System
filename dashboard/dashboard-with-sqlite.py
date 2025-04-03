@@ -1,39 +1,37 @@
 import sqlite3
 import os
+import threading
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from tkinter import StringVar
+from tkinter import StringVar, messagebox
+# Import the vehicle recognition system from the separate file.
+from LicensePlateRecognitionSystem import VehicleLicensePlateSystem
 
 working_dir = os.getcwd()
-DATABASE = working_dir+"/users.db"
-
+DATABASE = working_dir + "/users.db"
 
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
-        # Initialize ttkbootstrap Window with a chosen theme
         super().__init__(themename=theme)
         self.title("Dashboard")
-        self.geometry("900x500")
+        self.geometry("1000x1000")
 
-        # Initialize database connection and ensure table exists
+        # Initialize database connection and ensure tables exist
         self.conn = sqlite3.connect(DATABASE)
         self.create_table()
+        self.create_parking_info_table()
 
-        # Use the provided style without reassigning it.
         self.style.configure("TButton", font=("Helvetica", 10, "bold"))
         self.style.configure("Treeview.Heading", font=("Helvetica", 11, "bold"),
                              foreground="white", background="#007BFF")
         self.style.map("Treeview.Heading", background=[("active", "#0056b3"), ("!disabled", "#007BFF")])
 
-        # Create a main container frame to hold sidebar + content
         container = ttk.Frame(self)
         container.pack(side="right", fill="both", expand=True)
 
-        # Create and pack the sidebar on the left
         self.sidebar = SideBar(self, container)
         self.sidebar.pack(side="left", fill="y")
 
-        # Dictionary to store the frames for easy switching
         self.frames = {}
         for PageClass in (MainPage, RegisterPage):
             page_name = PageClass.__name__
@@ -41,11 +39,9 @@ class DashboardApp(ttk.Window):
             self.frames[page_name] = frame
             frame.grid(row=0, column=0, sticky="nsew")
 
-        # Show the main page by default
         self.show_frame("MainPage")
 
     def create_table(self):
-        """Create the users table if it does not exist."""
         cursor = self.conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -58,24 +54,35 @@ class DashboardApp(ttk.Window):
         """)
         self.conn.commit()
 
+    def create_parking_info_table(self):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS parking_info (
+                slot_number INTEGER PRIMARY KEY,
+                slot_status TEXT,
+                plate_number TEXT
+            )
+        """)
+        self.conn.commit()
+        cursor.execute("SELECT COUNT(*) FROM parking_info")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("INSERT INTO parking_info (slot_number, slot_status, plate_number) VALUES (1, 'empty', '')")
+            cursor.execute("INSERT INTO parking_info (slot_number, slot_status, plate_number) VALUES (2, 'empty', '')")
+            self.conn.commit()
+
     def get_all_users(self):
-        """Return all user records from the database."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT first_name, last_name, age, plate_number FROM users")
         return cursor.fetchall()
 
     def show_frame(self, page_name):
-        """Bring the specified frame to the front."""
         frame = self.frames[page_name]
         frame.tkraise()
-        # If we're showing the MainPage, update the table data
         if page_name == "MainPage":
             frame.update_tree()
 
-
 class SideBar(ttk.Frame):
-    """Sidebar with navigation buttons."""
-
     def __init__(self, parent, container):
         super().__init__(parent, padding=(10, 10))
         self.container = container
@@ -83,11 +90,8 @@ class SideBar(ttk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        # Title or brand at the top (optional)
         brand_label = ttk.Label(self, text="MENU", font=("Helvetica", 14, "bold"))
         brand_label.pack(pady=(0, 20), padx=10)
-
-        # Button to show the Main Page
         main_btn = ttk.Button(
             self,
             text="Main Page",
@@ -95,8 +99,6 @@ class SideBar(ttk.Frame):
             command=lambda: self.controller.show_frame("MainPage")
         )
         main_btn.pack(pady=5, fill="x")
-
-        # Button to show the Register Page
         register_btn = ttk.Button(
             self,
             text="Register",
@@ -105,49 +107,124 @@ class SideBar(ttk.Frame):
         )
         register_btn.pack(pady=5, fill="x")
 
-
 class MainPage(ttk.Frame):
-    """Frame that shows the 'Profile Details' table."""
-
     def __init__(self, parent, controller):
         super().__init__(parent, padding=(20, 20))
         self.controller = controller
+        self.recognition_thread = None  # Store the recognition thread
         self.create_widgets()
+        # Start periodic refresh (every 5000 ms)
+        self.refresh_data()
 
     def create_widgets(self):
         title_label = ttk.Label(self, text="Profile Details", font=("Helvetica", 16, "bold"))
         title_label.pack(pady=10)
 
-        # Create a Treeview as a table
+        # Treeview for user profiles
         columns = ("first_name", "last_name", "age", "plate_number")
         self.tree = ttk.Treeview(self, columns=columns, show="headings", bootstyle="info")
         self.tree.pack(pady=10, fill="both", expand=True)
-
-        # Set headings
         self.tree.heading("first_name", text="FIRST NAME")
         self.tree.heading("last_name", text="LAST NAME")
         self.tree.heading("age", text="AGE")
         self.tree.heading("plate_number", text="PLATE NUMBER")
-
-        # Set column widths (adjust as you see fit)
         self.tree.column("first_name", width=200, anchor="center")
         self.tree.column("last_name", width=200, anchor="center")
         self.tree.column("age", width=100, anchor="center")
         self.tree.column("plate_number", width=200, anchor="center")
 
+        # Section for parking information
+        parking_label = ttk.Label(self, text="Parking Info", font=("Helvetica", 16, "bold"))
+        parking_label.pack(pady=10)
+        parking_columns = ("slot_number", "slot_status", "plate_number")
+        self.parking_tree = ttk.Treeview(self, columns=parking_columns, show="headings", bootstyle="info")
+        self.parking_tree.pack(pady=10, fill="both", expand=True)
+        self.parking_tree.heading("slot_number", text="SLOT NUMBER")
+        self.parking_tree.heading("slot_status", text="SLOT STATUS")
+        self.parking_tree.heading("plate_number", text="PLATE NUMBER")
+        self.parking_tree.column("slot_number", width=100, anchor="center")
+        self.parking_tree.column("slot_status", width=100, anchor="center")
+        self.parking_tree.column("plate_number", width=200, anchor="center")
+
+        # Start button to launch the license plate recognition system
+        self.start_button = ttk.Button(
+            self,
+            text="Start License Plate Recognition",
+            bootstyle=SUCCESS,
+            command=self.start_recognition
+        )
+        self.start_button.pack(pady=10)
+
+        # Release button for parking slots
+        self.release_button = ttk.Button(
+            self,
+            text="Release Selected Slot",
+            bootstyle=WARNING,
+            command=self.release_slot
+        )
+        self.release_button.pack(pady=10)
+
     def update_tree(self):
-        """Load data from the database and populate the treeview."""
-        # Clear current content
+        # Update user profiles
         for item in self.tree.get_children():
             self.tree.delete(item)
-        # Fetch all users from the database
         for row in self.controller.get_all_users():
             self.tree.insert("", "end", values=row)
+        # Update parking info
+        self.update_parking_tree()
 
+    def update_parking_tree(self):
+        for item in self.parking_tree.get_children():
+            self.parking_tree.delete(item)
+        cursor = self.controller.conn.cursor()
+        cursor.execute("SELECT slot_number, slot_status, plate_number FROM parking_info ORDER BY slot_number ASC")
+        rows = cursor.fetchall()
+        for row in rows:
+            self.parking_tree.insert("", "end", values=row)
+
+    def refresh_data(self):
+        # Periodically refresh treeviews (e.g., every 5 seconds)
+        self.update_tree()
+        self.after(5000, self.refresh_data)
+
+    def start_recognition(self):
+        if self.recognition_thread and self.recognition_thread.is_alive():
+            messagebox.showinfo("Info", "License plate recognition is already running.")
+            return
+        self.recognition_thread = threading.Thread(target=self.run_recognition, daemon=True)
+        self.recognition_thread.start()
+        messagebox.showinfo("Info", "Started license plate recognition.")
+
+    def run_recognition(self):
+        system = VehicleLicensePlateSystem(
+            vehicle_model_path='weights/yolov8n.pt',
+            license_plate_model_path='weights/license_plate_detector.pt',
+            db_path='users.db'
+        )
+        system.process_video('video/sample.mp4')
+        # Refresh the parking info after recognition stops
+        self.update_parking_tree()
+
+    def release_slot(self):
+        selected_item = self.parking_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Please select a slot to release.")
+            return
+
+        slot_info = self.parking_tree.item(selected_item, 'values')
+        slot_number = slot_info[0]
+
+        cursor = self.controller.conn.cursor()
+        cursor.execute("""
+            UPDATE parking_info 
+            SET slot_status = 'empty', plate_number = '' 
+            WHERE slot_number = ?
+        """, (slot_number,))
+        self.controller.conn.commit()
+        messagebox.showinfo("Info", f"Slot {slot_number} has been released.")
+        self.update_parking_tree()
 
 class RegisterPage(ttk.Frame):
-    """Frame that shows a simple 'Register' form."""
-
     def __init__(self, parent, controller):
         super().__init__(parent, padding=(20, 20))
         self.controller = controller
@@ -157,37 +234,31 @@ class RegisterPage(ttk.Frame):
         label = ttk.Label(self, text="Register Page", font=("Helvetica", 16, "bold"))
         label.pack(pady=10)
 
-        # Create StringVar variables for the form fields
         self.first_name_var = StringVar()
         self.last_name_var = StringVar()
         self.age_var = StringVar()
         self.plate_number_var = StringVar()
 
-        # First Name
         fname_label = ttk.Label(self, text="First Name:")
         fname_label.pack(anchor="w", pady=(10, 0))
         fname_entry = ttk.Entry(self, textvariable=self.first_name_var)
         fname_entry.pack(anchor="w", fill="x")
 
-        # Last Name
         lname_label = ttk.Label(self, text="Last Name:")
         lname_label.pack(anchor="w", pady=(10, 0))
         lname_entry = ttk.Entry(self, textvariable=self.last_name_var)
         lname_entry.pack(anchor="w", fill="x")
 
-        # Age
         age_label = ttk.Label(self, text="Age:")
         age_label.pack(anchor="w", pady=(10, 0))
         age_entry = ttk.Entry(self, textvariable=self.age_var)
         age_entry.pack(anchor="w", fill="x")
 
-        # Plate Number
         plate_label = ttk.Label(self, text="Plate Number:")
         plate_label.pack(anchor="w", pady=(10, 0))
         plate_entry = ttk.Entry(self, textvariable=self.plate_number_var)
         plate_entry.pack(anchor="w", fill="x")
 
-        # Submit Button
         submit_button = ttk.Button(
             self,
             text="Submit",
@@ -197,42 +268,35 @@ class RegisterPage(ttk.Frame):
         submit_button.pack(pady=20)
 
     def submit_form(self):
-        # Get data from form
         first_name = self.first_name_var.get().strip()
         last_name = self.last_name_var.get().strip()
         age = self.age_var.get().strip()
         plate_number = self.plate_number_var.get().strip()
 
-        # Simple validation (you can extend this)
         if not (first_name and last_name and age and plate_number):
-            print("All fields are required!")
+            messagebox.showwarning("Warning", "All fields are required!")
             return
 
         try:
             age_int = int(age)
         except ValueError:
-            print("Age must be a number!")
+            messagebox.showwarning("Warning", "Age must be a number!")
             return
 
-        # Insert data into the database
         cursor = self.controller.conn.cursor()
         cursor.execute("""
             INSERT INTO users (first_name, last_name, age, plate_number)
             VALUES (?, ?, ?, ?)
         """, (first_name, last_name, age_int, plate_number))
         self.controller.conn.commit()
-        print("User registered successfully.")
+        messagebox.showinfo("Info", "User registered successfully.")
 
-        # Clear the fields
         self.first_name_var.set("")
         self.last_name_var.set("")
         self.age_var.set("")
         self.plate_number_var.set("")
-
-        # Update the MainPage table to reflect new data
         self.controller.frames["MainPage"].update_tree()
 
-
 if __name__ == "__main__":
-    app = DashboardApp(theme="darkly")  # Try different themes like 'darkly', 'journal', etc.
+    app = DashboardApp(theme="darkly")
     app.mainloop()
