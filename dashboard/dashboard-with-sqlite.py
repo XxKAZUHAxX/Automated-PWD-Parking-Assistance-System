@@ -14,7 +14,7 @@ class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
         super().__init__(themename=theme)
         self.title("Dashboard")
-        # self.geometry("1000x1000")
+        self.geometry("1000x800")
         self.minsize(1000, 800)
 
         # Initialize database connection and ensure tables exist
