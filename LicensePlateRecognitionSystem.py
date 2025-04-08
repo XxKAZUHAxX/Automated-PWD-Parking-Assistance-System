@@ -5,7 +5,9 @@ import sqlite3
 import re
 
 class VehicleLicensePlateSystem:
-    def __init__(self, vehicle_model_path, license_plate_model_path, db_path='users.db'):
+    def __init__(self, vehicle_model_path, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
+        self.event_queue = event_queue
+        self.camera_number = camera_number
         self.reader = easyocr.Reader(['en'], gpu=False)
         self.vehicle_model = YOLO(vehicle_model_path)
         self.license_plate_detector = YOLO(license_plate_model_path)
@@ -50,6 +52,8 @@ class VehicleLicensePlateSystem:
                 WHERE slot_number = ?
             """, (sanitized_plate, slot_number))
             conn.commit()
+            if self.event_queue:
+                self.event_queue.put(("match", self.camera_number, sanitized_plate))
             print(f"Updated slot {slot_number} with plate {sanitized_plate}")
         else:
             print("No available slot.")
@@ -76,7 +80,7 @@ class VehicleLicensePlateSystem:
             if not ret:
                 break
 
-            track_results = self.vehicle_model.track(frame, persist=True)
+            track_results = self.vehicle_model.track(frame, persist=True, verbose=False)
             vehicle_detections = track_results[0].boxes.data.tolist() if track_results else []
             annotated_frame = frame.copy()
             lp_results = self.license_plate_detector(frame)[0]
