@@ -1,6 +1,8 @@
 import sqlite3
 import os
 import threading
+import queue
+import serial
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import StringVar, messagebox
@@ -17,7 +19,7 @@ class DashboardApp(ttk.Window):
         self.minsize(1000, 800)
 
         # Initialize database connection and ensure tables exist
-        self.conn = sqlite3.connect(DATABASE)
+        self.conn = sqlite3.connect(DATABASE, check_same_thread=False)
         self.create_table()
         self.create_parking_info_table()
 
@@ -115,6 +117,10 @@ class MainPage(ttk.Frame):
         self.create_widgets()
         # Start periodic refresh (every 5000 ms)
         self.refresh_data()
+        # create the queue and start listener '/dev/ttyACM0'
+        self.event_queue = queue.Queue()
+        self.serial_port = serial.Serial('COM4', 9600, timeout=1)
+        threading.Thread(target=self._process_events, daemon=True).start()
 
     def create_widgets(self):
         title_label = ttk.Label(self, text="Profile Details", font=("Helvetica", 16, "bold"))
@@ -199,7 +205,9 @@ class MainPage(ttk.Frame):
         system = VehicleLicensePlateSystem(
             vehicle_model_path='weights/yolov8n.pt',
             license_plate_model_path='weights/license_plate_detector.pt',
-            db_path='users.db'
+            db_path='users.db',
+            event_queue=self.event_queue,
+            camera_number=1,  # or pass dynamically if you have multiple cameras
         )
         system.process_video('video/sample.mp4')
         # Refresh the parking info after recognition stops
@@ -222,7 +230,27 @@ class MainPage(ttk.Frame):
         """, (slot_number,))
         self.controller.conn.commit()
         messagebox.showinfo("Info", f"Slot {slot_number} has been released.")
+        cmd = f"{slot_number}:CLOSE\n".encode()
+        self.serial_port.write(cmd)
         self.update_parking_tree()
+
+    def _process_events(self):
+        """Listener thread: handle match events from LPR thread."""
+        while True:
+            event, cam_no, plate = self.event_queue.get()
+            if event == "match":
+                cursor = self.controller.conn.cursor()
+                # check current status
+                cursor.execute("""
+                    SELECT slot_status 
+                    FROM parking_info 
+                    WHERE slot_number=?
+                    """, (cam_no,))
+                status = cursor.fetchone()[0]
+                # send open command to Arduino
+                cmd = f"{cam_no}:OPEN\n".encode()
+                self.serial_port.write(cmd)
+            self.update_parking_tree()
 
 class RegisterPage(ttk.Frame):
     def __init__(self, parent, controller):
