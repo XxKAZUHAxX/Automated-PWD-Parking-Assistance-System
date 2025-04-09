@@ -11,6 +11,9 @@ from LicensePlateRecognitionSystem import VehicleLicensePlateSystem
 working_dir = os.getcwd()
 DATABASE = working_dir + "/users.db"
 
+# Hyperparameter
+serial_port = '/dev/ttyACM0'
+
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
         super().__init__(themename=theme)
@@ -119,7 +122,7 @@ class MainPage(ttk.Frame):
         self.refresh_data()
         # create the queue and start listener '/dev/ttyACM0'
         self.event_queue = queue.Queue()
-        self.serial_port = serial.Serial('COM4', 9600, timeout=1)
+        self.serial_port = serial.Serial(serial_port, 9600, timeout=1)
         threading.Thread(target=self._process_events, daemon=True).start()
 
     def create_widgets(self):
