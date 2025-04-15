@@ -4,7 +4,6 @@ import easyocr
 import sqlite3
 import re
 import time
-import sys
 
 class VehicleLicensePlateSystem:
     def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
@@ -78,7 +77,8 @@ class VehicleLicensePlateSystem:
             ret, frame = cap.read()
             if not ret:
                 break
-            frame = cv2.resize(frame, (800, 600))
+            resized_frame = cv2.resize(frame, (640, 480))
+            # resized_frame = frame
 
             # Set frame dimensions if desired (optional)
             # cap.set(3, 640)
@@ -90,9 +90,9 @@ class VehicleLicensePlateSystem:
             prev_time = current_time
 
             # Detect license plates in the frame
-            lp_results = self.license_plate_detector(frame)[0]
+            lp_results = self.license_plate_detector(resized_frame)[0]
             lp_detections = lp_results.boxes.data.tolist()
-            annotated_frame = frame.copy()
+            annotated_frame = resized_frame.copy()
 
             for lp in lp_detections:
                 x1_lp, y1_lp, x2_lp, y2_lp, lp_score, lp_class_id = lp
@@ -115,13 +115,14 @@ class VehicleLicensePlateSystem:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
             # cv2.namedWindow(f"Cam {self.camera_number}: License Plate Detection", cv2.WINDOW_NORMAL)
             # cv2.resizeWindow(f"Cam {self.camera_number}: License Plate Detection", 800, 600)
-            cv2.imshow(f"Cam {self.camera_number}: License Plate Recognition", annotated_frame)
+            window_name = f"Cam {self.camera_number}: License Plate Recognition"
+            cv2.imshow(window_name, annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
         cap.release()
-        cv2.destroyAllWindows()
-        sys.exit()
+        cv2.destroyWindow(window_name)
+        return
 
 if __name__ == "__main__":
     system = VehicleLicensePlateSystem(

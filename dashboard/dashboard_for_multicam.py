@@ -199,16 +199,15 @@ class MainPage(ttk.Frame):
         self.after(5000, self.refresh_data)
 
     def start_recognition(self):
-        if self.recognition_thread1 and self.recognition_thread1.is_alive() and self.recognition_thread1 and self.recognition_thread1.is_alive():
+        if (self.recognition_thread1 and self.recognition_thread1.is_alive()) or \
+                (self.recognition_thread2 and self.recognition_thread2.is_alive()):
             messagebox.showinfo("Info", "License plate recognition is already running.")
             return
-        # self.recognition_thread1 = threading.Thread(target=self.run_recognition, daemon=True)
-        self.recognition_thread1 = threading.Thread(target=lambda: self.run_recognition(camNo=1), daemon=True).start()
 
-        # self.recognition_thread2 = threading.Thread(target=self.run_recognition, daemon=True)
-        self.recognition_thread2 = threading.Thread(target=lambda: self.run_recognition(camNo=2), daemon=True).start()
-        # self.recognition_thread1.start()
-        # self.recognition_thread2.start()
+        self.recognition_thread1 = threading.Thread(target=lambda: self.run_recognition(camNo=1), daemon=True)
+        self.recognition_thread2 = threading.Thread(target=lambda: self.run_recognition(camNo=2), daemon=True)
+        self.recognition_thread1.start()
+        self.recognition_thread2.start()
         messagebox.showinfo("Info", "Started license plate recognition.")
 
     def run_recognition(self, camNo):
