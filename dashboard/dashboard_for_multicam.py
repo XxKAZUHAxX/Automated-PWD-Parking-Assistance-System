@@ -212,15 +212,6 @@ class MainPage(ttk.Frame):
         messagebox.showinfo("Info", "Started license plate recognition.")
 
     def run_recognition(self, camNo):
-        # system = VehicleLicensePlateSystem(
-        #     vehicle_model_path='weights/yolov8n.pt',
-        #     license_plate_model_path='weights/license_plate_detector.pt',
-        #     db_path='users.db',
-        #     event_queue=self.event_queue,
-        #     camera_number=1,  # or pass dynamically if you have multiple cameras
-        # )
-        # system.process_video('video/sample.mp4')
-
         system = VehicleLicensePlateSystem(
             license_plate_model_path='weights/license_plate_detector.pt',
             db_path='users.db',
