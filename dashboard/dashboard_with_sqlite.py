@@ -6,13 +6,13 @@ import serial
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import StringVar, messagebox
-from LicensePlateRecognitionSystem import VehicleLicensePlateSystem
+from LicensePlateRecognitionSystemNoVehicleDetection import VehicleLicensePlateSystem
 
 working_dir = os.getcwd()
 DATABASE = working_dir + "/users.db"
 
 # Hyperparameter
-serial_port = '/dev/ttyACM0'
+serial_port = 'COM4'
 
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
@@ -122,7 +122,8 @@ class MainPage(ttk.Frame):
         self.refresh_data()
         # create the queue and start listener '/dev/ttyACM0'
         self.event_queue = queue.Queue()
-        self.serial_port = serial.Serial(serial_port, 9600, timeout=1)
+        try: self.serial_port = serial.Serial(serial_port, 9600, timeout=1)
+        except: pass
         threading.Thread(target=self._process_events, daemon=True).start()
 
     def create_widgets(self):
@@ -205,12 +206,20 @@ class MainPage(ttk.Frame):
         messagebox.showinfo("Info", "Started license plate recognition.")
 
     def run_recognition(self):
+        # system = VehicleLicensePlateSystem(
+        #     vehicle_model_path='weights/yolov8n.pt',
+        #     license_plate_model_path='weights/license_plate_detector.pt',
+        #     db_path='users.db',
+        #     event_queue=self.event_queue,
+        #     camera_number=1,  # or pass dynamically if you have multiple cameras
+        # )
+        # system.process_video('video/sample.mp4')
+
         system = VehicleLicensePlateSystem(
-            vehicle_model_path='weights/yolov8n.pt',
             license_plate_model_path='weights/license_plate_detector.pt',
             db_path='users.db',
-            event_queue=self.event_queue,
-            camera_number=1,  # or pass dynamically if you have multiple cameras
+            event_queue = self.event_queue,
+            camera_number=1
         )
         system.process_video('video/sample.mp4')
         # Refresh the parking info after recognition stops
