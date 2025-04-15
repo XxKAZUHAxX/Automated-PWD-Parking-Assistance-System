@@ -1,10 +1,8 @@
 #include "Arduino_LED_Matrix.h"
 #include <stdint.h>
-#include <Servo.h>
 #include "config.h"
 
 ArduinoLEDMatrix matrix;
-Servo myservo;  // create Servo object to control a servo
 
 // The exact command we expect from the Pi
 const String triggerOpenCommand = "OPEN";
@@ -14,9 +12,22 @@ unsigned long ledMatrixPrev = millis();
 
 String cameraNumber, state;
 
+// Define control pins
+const int motorOneStepPin = 2;     // Connected to TB6600 "PUL+"
+const int motorOneDirPin  = 3;     // Connected to TB6600 "DIR+"
+const int motorTwoStepPin = 4;     // Connected to TB6600 "PUL+"
+const int motorTwoDirPin  = 5;     // Connected to TB6600 "DIR+"
+
+// Define steps for 90° turn (for a 200-step motor)
+const int stepsFor90Degrees = 50;  // 90° / 1.8° per step
+
 void setup() {
-  myservo.attach(9);
   Serial.begin(9600);
+  pinMode(motorOneStepPin, OUTPUT);
+  pinMode(motorOneDirPin, OUTPUT);
+  pinMode(motorTwoStepPin, OUTPUT);
+  pinMode(motorTwoDirPin, OUTPUT);
+
   // you can also load frames at runtime, without stopping the refresh
   matrix.loadSequence(frames);
   matrix.begin();
@@ -24,7 +35,9 @@ void setup() {
   // matrix.autoscroll(300);
   matrix.play(true);
   pinMode(LED_BUILTIN, OUTPUT);
-  myservo.write(0);
+
+  // Set default rotation direction for motor one (optional)
+  digitalWrite(motorOneDirPin, HIGH);
 }
 
 void loop() {
@@ -45,24 +58,70 @@ void loop() {
       Serial.print("Camera ID = "); Serial.println(cameraNumber);
       Serial.print("State = "); Serial.println(state);
     }
+    
+    // Convert cameraNumber from String to int
+    int camNum = cameraNumber.toInt();
+    
     // If it matches our trigger, actuate servo
     if (state == triggerOpenCommand) {
-      actuateOpenServo();
+      actuateOpenServo(camNum);
     } else if (state == triggerCloseCommand) {
-      actuateCloseServo();
+      actuateCloseServo(camNum);
     }
-
   }
+  
   if (millis() - ledMatrixPrev >= 8000) {
     matrix.play(true);
     ledMatrixPrev = millis();
   }
 }
 
-void actuateOpenServo() {
-  myservo.write(180);
+void actuateOpenServo(int cameraNumber) {
+  // Rotate motor 90°
+  int dirPin, stepPin;
+  switch (cameraNumber) {
+    case 1:
+      dirPin = motorOneDirPin;
+      stepPin = motorOneStepPin;
+      break;
+    case 2:
+      dirPin = motorTwoDirPin;
+      stepPin = motorTwoStepPin;
+      break;
+    default:
+      // Invalid camera number, do nothing
+      return;
+  }
+  digitalWrite(dirPin, HIGH);
+  for (int i = 0; i < stepsFor90Degrees; i++) {
+    digitalWrite(stepPin, HIGH);
+    delay(5);
+    digitalWrite(stepPin, LOW);
+    delay(5);
+  }
 }
 
-void actuateCloseServo() {
-  myservo.write(0);
+void actuateCloseServo(int cameraNumber) {
+  // Reverse motor for closing the barrier
+  int dirPin, stepPin;
+  switch (cameraNumber) {
+    case 1:
+      dirPin = motorOneDirPin;
+      stepPin = motorOneStepPin;
+      break;
+    case 2:
+      dirPin = motorTwoDirPin;
+      stepPin = motorTwoStepPin;
+      break;
+    default:
+      // Invalid camera number, do nothing
+      return;
+  }
+  digitalWrite(dirPin, LOW);
+  for (int i = 0; i < stepsFor90Degrees; i++) {
+    digitalWrite(stepPin, HIGH);
+    delay(5);
+    digitalWrite(stepPin, LOW);
+    delay(5);
+  }
 }
