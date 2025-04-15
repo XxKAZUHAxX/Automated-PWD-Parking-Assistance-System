@@ -13,6 +13,7 @@ DATABASE = working_dir + "/users.db"
 
 # Hyperparameter
 serial_port = 'COM4'
+# serial_port = '/dev/ttyACM1'     # Serial port for Raspberry Pi 5
 
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
