@@ -5,3 +5,4 @@
 - pip install filterpy
 - pip install easyocr
 - pip install ttkbootstrap
+- pip install pyserial
