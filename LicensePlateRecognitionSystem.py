@@ -3,6 +3,7 @@ from ultralytics import YOLO
 import easyocr
 import sqlite3
 import re
+import time
 
 class VehicleLicensePlateSystem:
     def __init__(self, vehicle_model_path, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
@@ -75,10 +76,17 @@ class VehicleLicensePlateSystem:
 
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
+        prev_time = time.time()
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
+
+            # Calculate the time difference and compute FPS (frames per second)
+            current_time = time.time()
+            elapsed_time = current_time - prev_time
+            fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
+            prev_time = current_time
 
             track_results = self.vehicle_model.track(frame, persist=True, verbose=False)
             vehicle_detections = track_results[0].boxes.data.tolist() if track_results else []
@@ -109,6 +117,9 @@ class VehicleLicensePlateSystem:
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
                         break
 
+            # Annotate the frame with the real-time calculated FPS
+            cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
             annotated_frame = cv2.resize(annotated_frame, dsize=None, fx=0.7, fy=0.7)
             cv2.imshow("Vehicle & License Plate Detection and Tracking", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
