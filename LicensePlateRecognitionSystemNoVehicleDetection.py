@@ -111,9 +111,9 @@ class VehicleLicensePlateSystem:
             # Display the real-time FPS on the frame
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
-            cv2.namedWindow("License Plate Detection", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("License Plate Detection", 800, 600)
-            cv2.imshow("License Plate Detection", annotated_frame)
+            cv2.namedWindow(f"Cam {self.camera_number}: License Plate Detection", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(f"Cam {self.camera_number}: License Plate Detection", 800, 600)
+            cv2.imshow(f"Cam {self.camera_number}: License Plate Detection", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
