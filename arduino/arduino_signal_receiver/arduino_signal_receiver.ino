@@ -7,10 +7,9 @@ ArduinoLEDMatrix matrix;
 // The exact command we expect from the Pi
 const String triggerOpenCommand = "OPEN";
 const String triggerCloseCommand = "CLOSE";
-
 unsigned long ledMatrixPrev = millis();
-
 String cameraNumber, state;
+unsigned int motorRotateDelayMillis = 5;
 
 // Define control pins
 const int motorOneStepPin = 2;     // Connected to TB6600 "PUL+"
@@ -95,9 +94,9 @@ void actuateOpenServo(int cameraNumber) {
   digitalWrite(dirPin, HIGH);
   for (int i = 0; i < stepsFor90Degrees; i++) {
     digitalWrite(stepPin, HIGH);
-    delay(5);
+    delay(motorRotateDelayMillis);
     digitalWrite(stepPin, LOW);
-    delay(5);
+    delay(motorRotateDelayMillis);
   }
 }
 
@@ -120,8 +119,8 @@ void actuateCloseServo(int cameraNumber) {
   digitalWrite(dirPin, LOW);
   for (int i = 0; i < stepsFor90Degrees; i++) {
     digitalWrite(stepPin, HIGH);
-    delay(5);
+    delay(motorRotateDelayMillis);
     digitalWrite(stepPin, LOW);
-    delay(5);
+    delay(motorRotateDelayMillis);
   }
 }
