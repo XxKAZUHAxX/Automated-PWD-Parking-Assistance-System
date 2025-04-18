@@ -15,6 +15,9 @@ DATABASE = working_dir + "/users.db"
 serial_port = 'COM4'
 # serial_port = '/dev/ttyACM1'     # Serial port for Raspberry Pi 5
 
+video_path_1 = 'video/sample.mp4'
+video_path_2 = 'video/sample.mp4'
+
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
         super().__init__(themename=theme)
@@ -205,20 +208,20 @@ class MainPage(ttk.Frame):
             messagebox.showinfo("Info", "License plate recognition is already running.")
             return
 
-        self.recognition_thread1 = threading.Thread(target=lambda: self.run_recognition(camNo=1), daemon=True)
-        self.recognition_thread2 = threading.Thread(target=lambda: self.run_recognition(camNo=2), daemon=True)
+        self.recognition_thread1 = threading.Thread(target=lambda: self.run_recognition(camNo=1, video_path=video_path_1), daemon=True)
+        self.recognition_thread2 = threading.Thread(target=lambda: self.run_recognition(camNo=2, video_path=video_path_2), daemon=True)
         self.recognition_thread1.start()
         self.recognition_thread2.start()
         messagebox.showinfo("Info", "Started license plate recognition.")
 
-    def run_recognition(self, camNo):
+    def run_recognition(self, camNo, video_path):
         system = VehicleLicensePlateSystem(
             license_plate_model_path='weights/license_plate_detector.pt',
             db_path='users.db',
             event_queue = self.event_queue,
             camera_number=camNo
         )
-        system.process_video('video/sample.mp4')
+        system.process_video(video_path)
         # Refresh the parking info after recognition stops
         self.update_parking_tree()
 
