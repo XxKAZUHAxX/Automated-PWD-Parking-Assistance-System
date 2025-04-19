@@ -9,8 +9,9 @@ class VehicleLicensePlateSystem:
     def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
         self.event_queue = event_queue
         self.camera_number = camera_number
-        self.reader = easyocr.Reader(['en'], gpu=False)
+        self.reader = easyocr.Reader(['en'], gpu=True)  # ← GPU=True now
         self.license_plate_detector = YOLO(license_plate_model_path)
+        self.license_plate_detector.to('cuda')
         self.db_path = db_path
 
     def get_registered_plate_numbers(self):
@@ -77,8 +78,8 @@ class VehicleLicensePlateSystem:
             ret, frame = cap.read()
             if not ret:
                 break
-            resized_frame = cv2.resize(frame, (640, 480))
-            # resized_frame = frame
+            # resized_frame = cv2.resize(frame, (1280, 720))
+            resized_frame = frame
 
             # Set frame dimensions if desired (optional)
             # cap.set(3, 640)
@@ -113,9 +114,9 @@ class VehicleLicensePlateSystem:
             # Display the real-time FPS on the frame
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
-            # cv2.namedWindow(f"Cam {self.camera_number}: License Plate Detection", cv2.WINDOW_NORMAL)
-            # cv2.resizeWindow(f"Cam {self.camera_number}: License Plate Detection", 800, 600)
             window_name = f"Cam {self.camera_number}: License Plate Recognition"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, 800, 600)
             cv2.imshow(window_name, annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
