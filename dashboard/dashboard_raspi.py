@@ -6,14 +6,14 @@ import serial
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from tkinter import StringVar, messagebox
-from LicensePlateRecognitionSystemNoVehicleDetection import VehicleLicensePlateSystem
+from LicensePlateRecognitionSystemRaspi import VehicleLicensePlateSystem
 
 working_dir = os.getcwd()
 DATABASE = working_dir + "/users.db"
 
 # Hyperparameter
-serial_port = 'COM4'
-# serial_port = '/dev/ttyACM1'     # Serial port for Raspberry Pi 5
+# serial_port = 'COM4'
+serial_port = '/dev/ttyACM0'     # Serial port for Raspberry Pi 5
 
 video_path_1 = 'video/sample_2.mp4'
 video_path_2 = 'video/sample_3.mp4'
@@ -123,7 +123,9 @@ class MainPage(ttk.Frame):
         self.recognition_thread1 = None
         self.recognition_thread2 = None
         self.create_widgets()
+        # Start periodic refresh (every 5000 ms)
         self.refresh_data()
+        # create the queue and start listener '/dev/ttyACM0'
         self.event_queue = queue.Queue()
         try: self.serial_port = serial.Serial(serial_port, 9600, timeout=1)
         except: pass

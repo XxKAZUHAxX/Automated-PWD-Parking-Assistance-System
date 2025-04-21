@@ -35,12 +35,14 @@ class VehicleLicensePlateSystem:
             return
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        # Check if this plate is already parked
         cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'occupied' AND plate_number = ?", (sanitized_plate,))
         already_parked = cursor.fetchone()
         if already_parked:
             print(f"Plate {sanitized_plate} is already parked in slot {already_parked[0]}")
             conn.close()
             return
+        # Find an empty slot
         cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'empty' ORDER BY slot_number ASC LIMIT 1")
         result = cursor.fetchone()
         if result:
@@ -74,12 +76,9 @@ class VehicleLicensePlateSystem:
 
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
-        # Initialize the previous time for FPS calculation
         prev_time = time.time()
         while cap.isOpened():
             ret, frame = cap.read()
-            cap.set(3, 800)
-            cap.set(4, 600)
             if not ret:
                 break
 
@@ -89,17 +88,19 @@ class VehicleLicensePlateSystem:
             fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
             prev_time = current_time
 
-            track_results = self.vehicle_model.predict(frame, verbose=False)
+            track_results = self.vehicle_model.track(frame, persist=True, verbose=False)
             vehicle_detections = track_results[0].boxes.data.tolist() if track_results else []
             annotated_frame = frame.copy()
             lp_results = self.license_plate_detector(frame)[0]
             lp_detections = lp_results.boxes.data.tolist()
 
             for det in vehicle_detections:
-                x1, y1, x2, y2, score, class_id = det
+                x1, y1, x2, y2, track_id, score, class_id = det
                 if int(class_id) not in self.vehicles:
                     continue
                 cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                cv2.putText(annotated_frame, f'ID: {int(track_id)}', (int(x1), int(y1) - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
                 for lp in lp_detections:
                     x1_lp, y1_lp, x2_lp, y2_lp, lp_score, lp_class_id = lp
@@ -119,10 +120,8 @@ class VehicleLicensePlateSystem:
             # Annotate the frame with the real-time calculated FPS
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
-            cv2.namedWindow("Vehicle & License Plate Detection", cv2.WINDOW_NORMAL)
-            # annotated_frame = cv2.resize(annotated_frame, dsize=None, fx=0.7, fy=0.7)
-            cv2.resizeWindow("Vehicle & License Plate Detection", 800, 600)
-            cv2.imshow("Vehicle & License Plate Detection", annotated_frame)
+            annotated_frame = cv2.resize(annotated_frame, dsize=None, fx=0.7, fy=0.7)
+            cv2.imshow("Vehicle & License Plate Detection and Tracking", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
@@ -131,8 +130,8 @@ class VehicleLicensePlateSystem:
 
 if __name__ == "__main__":
     system = VehicleLicensePlateSystem(
-        vehicle_model_path='weights/yolov8n.pt',
-        license_plate_model_path='weights/license_plate_detector.pt',
-        db_path='users.db'
+        vehicle_model_path='../weights/yolov8n.pt',
+        license_plate_model_path='../weights/license_plate_detector.pt',
+        db_path='../users.db'
     )
     system.process_video('video/sample.mp4')

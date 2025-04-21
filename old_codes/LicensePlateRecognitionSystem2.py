@@ -6,12 +6,13 @@ import re
 import time
 
 class VehicleLicensePlateSystem:
-    def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
+    def __init__(self, vehicle_model_path, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
         self.event_queue = event_queue
         self.camera_number = camera_number
-        self.reader = easyocr.Reader(['en'], gpu=True)  # ← GPU=True now
+        self.reader = easyocr.Reader(['en'], gpu=False)
+        self.vehicle_model = YOLO(vehicle_model_path)
         self.license_plate_detector = YOLO(license_plate_model_path)
-        # self.license_plate_detector.to('cuda')
+        self.vehicles = [2, 3, 5, 7]
         self.db_path = db_path
 
     def get_registered_plate_numbers(self):
@@ -73,61 +74,65 @@ class VehicleLicensePlateSystem:
 
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
+        # Initialize the previous time for FPS calculation
         prev_time = time.time()
         while cap.isOpened():
             ret, frame = cap.read()
+            cap.set(3, 800)
+            cap.set(4, 600)
             if not ret:
                 break
-            # resized_frame = cv2.resize(frame, (1280, 720))
-            resized_frame = frame
 
-            # Set frame dimensions if desired (optional)
-            # cap.set(3, 640)
-            # cap.set(4, 480)
-
+            # Calculate the time difference and compute FPS (frames per second)
             current_time = time.time()
             elapsed_time = current_time - prev_time
             fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
             prev_time = current_time
 
-            # Detect license plates in the frame
-            lp_results = self.license_plate_detector(resized_frame)[0]
+            track_results = self.vehicle_model.predict(frame, verbose=False)
+            vehicle_detections = track_results[0].boxes.data.tolist() if track_results else []
+            annotated_frame = frame.copy()
+            lp_results = self.license_plate_detector(frame)[0]
             lp_detections = lp_results.boxes.data.tolist()
-            annotated_frame = resized_frame.copy()
 
-            for lp in lp_detections:
-                x1_lp, y1_lp, x2_lp, y2_lp, lp_score, lp_class_id = lp
-                # Crop the detected license plate region
-                lp_crop = frame[int(y1_lp):int(y2_lp), int(x1_lp):int(x2_lp)]
-                # Convert to grayscale to potentially improve OCR accuracy and reduce computation
-                lp_crop_gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
-                ocr_results = self.reader.readtext(lp_crop_gray, detail=0)
-                plate_text = ocr_results[0].strip() if ocr_results else ""
-                # Perform plate comparison if text was detected
-                if plate_text:
-                    self.compare_plate_number(plate_text)
-                # Annotate the frame
-                cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
-                cv2.putText(annotated_frame, plate_text, (int(x1_lp), int(y1_lp) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+            for det in vehicle_detections:
+                x1, y1, x2, y2, score, class_id = det
+                if int(class_id) not in self.vehicles:
+                    continue
+                cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-            # Display the real-time FPS on the frame
+                for lp in lp_detections:
+                    x1_lp, y1_lp, x2_lp, y2_lp, lp_score, lp_class_id = lp
+                    lp_center_x = (x1_lp + x2_lp) / 2
+                    lp_center_y = (y1_lp + y2_lp) / 2
+                    if x1 < lp_center_x < x2 and y1 < lp_center_y < y2:
+                        lp_crop = frame[int(y1_lp):int(y2_lp), int(x1_lp):int(x2_lp)]
+                        lp_crop_gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
+                        ocr_results = self.reader.readtext(lp_crop_gray, detail=0)
+                        plate_text = ocr_results[0].strip() if ocr_results else ""
+                        self.compare_plate_number(plate_text)
+                        cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
+                        cv2.putText(annotated_frame, plate_text, (int(x1_lp), int(y1_lp) - 10),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+                        break
+
+            # Annotate the frame with the real-time calculated FPS
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
-            window_name = f"Cam {self.camera_number}: License Plate Recognition"
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(window_name, 800, 600)
-            cv2.imshow(window_name, annotated_frame)
+            cv2.namedWindow("Vehicle & License Plate Detection", cv2.WINDOW_NORMAL)
+            # annotated_frame = cv2.resize(annotated_frame, dsize=None, fx=0.7, fy=0.7)
+            cv2.resizeWindow("Vehicle & License Plate Detection", 800, 600)
+            cv2.imshow("Vehicle & License Plate Detection", annotated_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
 
         cap.release()
-        cv2.destroyWindow(window_name)
-        return
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     system = VehicleLicensePlateSystem(
-        license_plate_model_path='weights/license_plate_detector.pt',
-        db_path='users.db'
+        vehicle_model_path='../weights/yolov8n.pt',
+        license_plate_model_path='../weights/license_plate_detector.pt',
+        db_path='../users.db'
     )
     system.process_video('video/sample.mp4')
