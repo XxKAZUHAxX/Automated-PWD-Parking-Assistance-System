@@ -4,11 +4,14 @@ import easyocr
 import sqlite3
 import re
 import time
+import queue
 
 class VehicleLicensePlateSystem:
-    def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1):
+    def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1, frame_queue=None, stop_event=None):
         self.event_queue = event_queue
         self.camera_number = camera_number
+        self.frame_queue = frame_queue
+        self.stop_event = stop_event
         self.reader = easyocr.Reader(['en'])  # ← GPU=True now
         self.license_plate_detector = YOLO(license_plate_model_path)
         # self.license_plate_detector.to('cuda')
@@ -74,7 +77,7 @@ class VehicleLicensePlateSystem:
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
         prev_time = time.time()
-        while cap.isOpened():
+        while cap.isOpened() and not (self.stop_event and self.stop_event.is_set()):
             ret, frame = cap.read()
             if not ret:
                 break
@@ -110,19 +113,18 @@ class VehicleLicensePlateSystem:
                 cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
                 cv2.putText(annotated_frame, plate_text, (int(x1_lp), int(y1_lp) - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
-
             # Display the real-time FPS on the frame
             cv2.putText(annotated_frame, f"FPS: {fps:.2f}", (50, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.9, (50, 255, 0), 2)
-            window_name = f"Cam {self.camera_number}: License Plate Recognition"
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(window_name, 800, 600)
-            cv2.imshow(window_name, annotated_frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-
+            annotated_frame = cv2.resize(annotated_frame, (800, 600))
+            if self.frame_queue:
+                # overwrite the queue if it's full so only the latest frame is kept
+                try:
+                    self.frame_queue.get_nowait()
+                except:
+                    pass
+                self.frame_queue.put(annotated_frame)
         cap.release()
-        cv2.destroyWindow(window_name)
         return
 
 if __name__ == "__main__":

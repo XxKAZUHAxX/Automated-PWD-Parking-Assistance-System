@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import cv2
 import threading
 import queue
 import serial
@@ -127,6 +128,19 @@ class MainPage(ttk.Frame):
         self.refresh_data()
         # create the queue and start listener '/dev/ttyACM0'
         self.event_queue = queue.Queue()
+        # before starting recognition threads:
+        self.frame_queues = {
+            1: queue.Queue(maxsize=1),
+            2: queue.Queue(maxsize=1)
+        }
+        # Track which camera windows are open
+        self.active_cams = {1: True, 2: True}
+        # Events to tell workers to stop
+        self.stop_events = {1: threading.Event(),
+                            2: threading.Event()}
+        # Kick off display loop
+        self.after(30, self._display_frames)
+
         try: self.serial_port = serial.Serial(serial_port, 9600, timeout=1)
         except: pass
         threading.Thread(target=self._process_events, daemon=True).start()
@@ -208,8 +222,11 @@ class MainPage(ttk.Frame):
             messagebox.showinfo("Info", "License plate recognition is already running.")
             return
 
-        self.recognition_thread1 = threading.Thread(target=lambda: self.run_recognition(camNo=1, video_path=video_path_1), daemon=True)
-        self.recognition_thread2 = threading.Thread(target=lambda: self.run_recognition(camNo=2, video_path=video_path_2), daemon=True)
+        # Clear any previous stop flags
+        self.stop_events[1].clear()
+        self.stop_events[2].clear()
+        self.recognition_thread1 = threading.Thread(target=self.run_worker, args=(1,video_path_1,), daemon=True)
+        self.recognition_thread2 = threading.Thread(target=self.run_worker, args=(2,video_path_2,), daemon=True)
         self.recognition_thread1.start()
         self.recognition_thread2.start()
         messagebox.showinfo("Info", "Started license plate recognition.")
@@ -224,6 +241,18 @@ class MainPage(ttk.Frame):
         system.process_video(video_path)
         # Refresh the parking info after recognition stops
         self.update_parking_tree()
+
+    def run_worker(self, camNo, video_path):
+        system = VehicleLicensePlateSystem(
+            license_plate_model_path='weights/license_plate_detector.pt',
+            db_path='users.db',
+            event_queue=self.event_queue,
+            camera_number=camNo,
+            frame_queue=self.frame_queues[camNo],  # pass the queue
+            stop_event=self.stop_events[camNo]
+        )
+        system.process_video(video_path)
+        # once done, you could push a sentinel or let the queue drain
 
     def release_slot(self):
         selected_item = self.parking_tree.selection()
@@ -263,6 +292,31 @@ class MainPage(ttk.Frame):
                 cmd = f"{cam_no}:OPEN\n".encode()
                 self.serial_port.write(cmd)
             self.update_parking_tree()
+
+    def _display_frames(self):
+        # Determine if any camera is still active (i.e. its window is open)
+        still_any = False
+
+        for camNo, q in self.frame_queues.items():
+            if not self.active_cams.get(camNo, False):
+                continue  # this cam has been closed
+
+            still_any = True
+            if not q.empty():
+                frame = q.get()
+                window_name = f"Cam {camNo}: License Plate Recognition"
+                cv2.imshow(window_name, frame)
+
+                # capture keypress for this window
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    cv2.destroyWindow(window_name)
+                    self.active_cams[camNo] = False
+
+        # if any windows remain open, schedule next check
+        if still_any:
+            self.after(30, self._display_frames)
+
 
 class RegisterPage(ttk.Frame):
     def __init__(self, parent, controller):
