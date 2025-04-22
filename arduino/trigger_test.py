@@ -1,7 +1,6 @@
 import serial
 import time
 
-
 # Adjust '/dev/ttyACM0' if your Arduino appears differently
 ser = serial.Serial('COM4', 9600, timeout=1)
 time.sleep(2)  # wait for Arduino reset
@@ -18,4 +17,3 @@ while True:
         ser.write(b'2:CLOSE\n')
     else:
         print("Invalid input")
-

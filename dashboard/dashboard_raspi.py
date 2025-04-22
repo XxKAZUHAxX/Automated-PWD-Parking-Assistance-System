@@ -1,5 +1,6 @@
 import sqlite3
 import os
+os.environ['YOLO_AUTOINSTALL'] = 'false'
 import cv2
 import threading
 import queue
@@ -294,28 +295,31 @@ class MainPage(ttk.Frame):
             self.update_parking_tree()
 
     def _display_frames(self):
-        # Determine if any camera is still active (i.e. its window is open)
         still_any = False
-
+        # 1) Show all active camera frames
         for camNo, q in self.frame_queues.items():
             if not self.active_cams.get(camNo, False):
-                continue  # this cam has been closed
-
-            still_any = True
+                continue
             if not q.empty():
                 frame = q.get()
                 window_name = f"Cam {camNo}: License Plate Recognition"
                 cv2.imshow(window_name, frame)
+                still_any = True
 
-                # capture keypress for this window
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q'):
+        # 2) Poll keypress just ONCE per cycle
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            # 3) Close & signal all active cams
+            for camNo in list(self.active_cams.keys()):
+                if self.active_cams[camNo]:
+                    window_name = f"Cam {camNo}: License Plate Recognition"
                     cv2.destroyWindow(window_name)
                     self.active_cams[camNo] = False
+                    self.stop_events[camNo].set()
 
-        # if any windows remain open, schedule next check
-        if still_any:
-            self.after(30, self._display_frames)
+        # 4) Continue looping if any window remains
+        # if still_any:
+        self.after(30, self._display_frames)
 
 
 class RegisterPage(ttk.Frame):

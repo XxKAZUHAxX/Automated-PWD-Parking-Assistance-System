@@ -1,4 +1,6 @@
 import cv2
+import os
+os.environ['YOLO_AUTOINSTALL'] = 'false'
 from ultralytics import YOLO
 import easyocr
 import sqlite3
@@ -12,7 +14,7 @@ class VehicleLicensePlateSystem:
         self.camera_number = camera_number
         self.frame_queue = frame_queue
         self.stop_event = stop_event
-        self.reader = easyocr.Reader(['en'])  # ← GPU=True now
+        self.reader = easyocr.Reader(['en'], gpu=False)  # ← GPU=True now
         self.license_plate_detector = YOLO(license_plate_model_path)
         # self.license_plate_detector.to('cuda')
         self.db_path = db_path
