@@ -1,6 +1,7 @@
 import cv2
 import os
 os.environ['YOLO_AUTOINSTALL'] = 'false'
+os.environ['YOLO_VERBOSE'] = 'false'
 from ultralytics import YOLO
 import easyocr
 import sqlite3

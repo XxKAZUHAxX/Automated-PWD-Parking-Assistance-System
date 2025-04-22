@@ -1,6 +1,7 @@
 import sqlite3
 import os
 os.environ['YOLO_AUTOINSTALL'] = 'false'
+os.environ['YOLO_VERBOSE'] = 'false'
 import cv2
 import threading
 import queue

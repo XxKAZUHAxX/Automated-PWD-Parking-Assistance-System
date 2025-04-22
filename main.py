@@ -1,4 +1,4 @@
-# from dashboard.dashboard_with_sqlite import *         # For test code
+# from old_codes.dashboard_with_sqlite import *         # For test code
 # from dashboard.dashboard_for_multicam import *          # For Windows machine
 from dashboard.dashboard_raspi import *               # For Raspberry Pi machine
 
