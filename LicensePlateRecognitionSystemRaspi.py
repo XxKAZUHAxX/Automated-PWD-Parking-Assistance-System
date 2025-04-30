@@ -7,7 +7,6 @@ import easyocr
 import sqlite3
 import re
 import time
-import queue
 
 class VehicleLicensePlateSystem:
     def __init__(self, license_plate_model_path, db_path='users.db', event_queue=None, camera_number=1, frame_queue=None, stop_event=None):
@@ -15,7 +14,7 @@ class VehicleLicensePlateSystem:
         self.camera_number = camera_number
         self.frame_queue = frame_queue
         self.stop_event = stop_event
-        self.reader = easyocr.Reader(['en'], gpu=False)  # ← GPU=True now
+        self.reader = easyocr.Reader(['en'], gpu=False, detector='dbnet18')
         self.license_plate_detector = YOLO(license_plate_model_path)
         # self.license_plate_detector.to('cuda')
         self.db_path = db_path
@@ -34,7 +33,7 @@ class VehicleLicensePlateSystem:
             conn.close()
         return registered_plates
 
-    def update_parking_info(self, plate_text):
+    def update_parking_info(self, plate_text, camera_number):
         sanitized_plate = re.sub('[^A-Z0-9]', '', plate_text.upper())
         if not sanitized_plate:
             return
@@ -49,7 +48,12 @@ class VehicleLicensePlateSystem:
         cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'empty' ORDER BY slot_number ASC LIMIT 1")
         result = cursor.fetchone()
         if result:
-            slot_number = result[0]
+            try:
+                slot_number = int(camera_number)
+                if slot_number > 2: # Assuming 2 is the max number of slots
+                    slot_number = 2
+            except:
+                slot_number = result[0]
             cursor.execute("""
                 UPDATE parking_info 
                 SET slot_status = 'occupied', plate_number = ? 
@@ -63,7 +67,7 @@ class VehicleLicensePlateSystem:
             print("No available slot.")
         conn.close()
 
-    def compare_plate_number(self, recognized_plate):
+    def compare_plate_number(self, recognized_plate, camera_number):
         sanitized_plate = re.sub('[^A-Z0-9]', '', recognized_plate.upper())
         if not sanitized_plate:
             return False
@@ -71,7 +75,7 @@ class VehicleLicensePlateSystem:
         registered_plates = self.get_registered_plate_numbers()
         if sanitized_plate in registered_plates:
             print(f"Match found: {sanitized_plate}")
-            self.update_parking_info(sanitized_plate)
+            self.update_parking_info(sanitized_plate, camera_number)
             return True
         else:
             print(f"No match for: {sanitized_plate}")
@@ -79,17 +83,27 @@ class VehicleLicensePlateSystem:
 
     def process_video(self, video_path):
         cap = cv2.VideoCapture(video_path)
+        # Set frame dimensions if desired (optional)
+        # cap.set(3, 640) #640
+        # cap.set(4, 480) #480
+
+        frame_skip = 8
+        frame_count = 0
+
         prev_time = time.time()
         while cap.isOpened() and not (self.stop_event and self.stop_event.is_set()):
             ret, frame = cap.read()
             if not ret:
                 break
-            # resized_frame = cv2.resize(frame, (1280, 720))
-            resized_frame = frame
 
-            # Set frame dimensions if desired (optional)
-            # cap.set(3, 640)
-            # cap.set(4, 480)
+            frame_count += 1
+            if frame_count < frame_skip:
+                continue  # Skip processing this frame
+
+            frame_count = 0
+            # resized_frame = cv2.resize(frame, (1280, 720))
+            # resized_frame = cv2.resize(frame, None, fx=0.5, fy=0.5)
+            resized_frame = frame
 
             current_time = time.time()
             elapsed_time = current_time - prev_time
@@ -104,14 +118,16 @@ class VehicleLicensePlateSystem:
             for lp in lp_detections:
                 x1_lp, y1_lp, x2_lp, y2_lp, lp_score, lp_class_id = lp
                 # Crop the detected license plate region
-                lp_crop = frame[int(y1_lp):int(y2_lp), int(x1_lp):int(x2_lp)]
+                lp_crop = frame[int(y1_lp):int(y2_lp), int(x1_lp):int(x2_lp)] if lp_score > 0.3 else None
+                if lp_crop is None:
+                    continue
                 # Convert to grayscale to potentially improve OCR accuracy and reduce computation
                 lp_crop_gray = cv2.cvtColor(lp_crop, cv2.COLOR_BGR2GRAY)
-                ocr_results = self.reader.readtext(lp_crop_gray, detail=0)
+                ocr_results = self.reader.readtext(lp_crop_gray, detail=0, batch_size=5)
                 plate_text = ocr_results[0].strip() if ocr_results else ""
                 # Perform plate comparison if text was detected
                 if plate_text:
-                    self.compare_plate_number(plate_text)
+                    self.compare_plate_number(plate_text, self.camera_number)
                 # Annotate the frame
                 cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
                 cv2.putText(annotated_frame, plate_text, (int(x1_lp), int(y1_lp) - 10),

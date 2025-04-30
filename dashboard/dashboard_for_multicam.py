@@ -15,8 +15,8 @@ DATABASE = working_dir + "/users.db"
 serial_port = 'COM4'
 # serial_port = '/dev/ttyACM1'     # Serial port for Raspberry Pi 5
 
-video_path_1 = 'video/sample_2.mp4'
-video_path_2 = 'video/sample_3.mp4'
+video_path_1 = 0
+video_path_2 = 1
 
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
