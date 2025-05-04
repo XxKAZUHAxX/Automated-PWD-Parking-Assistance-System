@@ -28,7 +28,7 @@ class VehicleLicensePlateSystem:
             conn.close()
         return registered_plates
 
-    def update_parking_info(self, plate_text):
+    def update_parking_info(self, plate_text, camera_number):
         sanitized_plate = re.sub('[^A-Z0-9]', '', plate_text.upper())
         if not sanitized_plate:
             return
@@ -43,7 +43,12 @@ class VehicleLicensePlateSystem:
         cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'empty' ORDER BY slot_number ASC LIMIT 1")
         result = cursor.fetchone()
         if result:
-            slot_number = result[0]
+            try:
+                slot_number = int(camera_number)
+                if slot_number > 2:  # Assuming 2 is the max number of slots
+                    slot_number = 2
+            except:
+                slot_number = result[0]
             cursor.execute("""
                 UPDATE parking_info 
                 SET slot_status = 'occupied', plate_number = ? 
@@ -57,7 +62,7 @@ class VehicleLicensePlateSystem:
             print("No available slot.")
         conn.close()
 
-    def compare_plate_number(self, recognized_plate):
+    def compare_plate_number(self, recognized_plate, camera_number):
         sanitized_plate = re.sub('[^A-Z0-9]', '', recognized_plate.upper())
         if not sanitized_plate:
             return False
@@ -65,7 +70,7 @@ class VehicleLicensePlateSystem:
         registered_plates = self.get_registered_plate_numbers()
         if sanitized_plate in registered_plates:
             print(f"Match found: {sanitized_plate}")
-            self.update_parking_info(sanitized_plate)
+            self.update_parking_info(sanitized_plate, camera_number)
             return True
         else:
             print(f"No match for: {sanitized_plate}")
@@ -105,7 +110,7 @@ class VehicleLicensePlateSystem:
                 plate_text = ocr_results[0].strip() if ocr_results else ""
                 # Perform plate comparison if text was detected
                 if plate_text:
-                    self.compare_plate_number(plate_text)
+                    self.compare_plate_number(plate_text, self.camera_number)
                 # Annotate the frame
                 cv2.rectangle(annotated_frame, (int(x1_lp), int(y1_lp)), (int(x2_lp), int(y2_lp)), (0, 0, 255), 2)
                 cv2.putText(annotated_frame, plate_text, (int(x1_lp), int(y1_lp) - 10),
