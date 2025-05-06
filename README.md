@@ -1,5 +1,16 @@
 # Automated-PWD-Parking-Assistance-System
 
+# Framework and Technologies Used:
+- OpenCV
+- YOLOv8
+- Tkinter
+- Ttkbootstrap
+- EasyOCR
+- SQLite
+- PySerial
+- Threading
+- Queue
+
 ## PIP Install Requirements:
 - pip install ultralytics
 - pip install filterpy
