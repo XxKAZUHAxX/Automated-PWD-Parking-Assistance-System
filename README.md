@@ -1,6 +1,6 @@
 # Automated-PWD-Parking-Assistance-System
 
-# Framework and Technologies Used:
+## Framework and Technologies Used:
 - OpenCV
 - YOLOv8
 - Tkinter
