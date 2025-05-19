@@ -135,4 +135,4 @@ if __name__ == "__main__":
         license_plate_model_path='weights/license_plate_detector.pt',
         db_path='users.db'
     )
-    system.process_video('video/sample.mp4')
+    system.process_video('video/sample_2.mp4')
