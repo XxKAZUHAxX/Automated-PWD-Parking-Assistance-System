@@ -29,37 +29,65 @@ class VehicleLicensePlateSystem:
         return registered_plates
 
     def update_parking_info(self, plate_text, camera_number):
-        sanitized_plate = re.sub('[^A-Z0-9]', '', plate_text.upper())
+        # sanitize plate
+        sanitized_plate = re.sub(r'[^A-Z0-9]', '', plate_text.upper())
         if not sanitized_plate:
             return
+
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'occupied' AND plate_number = ?", (sanitized_plate,))
-        already_parked = cursor.fetchone()
-        if already_parked:
-            print(f"Plate {sanitized_plate} is already parked in slot {already_parked[0]}")
+
+        # determine which slot this camera maps to
+        try:
+            target_slot = int(camera_number)
+        except ValueError:
+            print(f"Invalid camera number {camera_number}, cannot assign slot.")
             conn.close()
             return
-        cursor.execute("SELECT slot_number FROM parking_info WHERE slot_status = 'empty' ORDER BY slot_number ASC LIMIT 1")
-        result = cursor.fetchone()
-        if result:
-            try:
-                slot_number = int(camera_number)
-                if slot_number > 2:  # Assuming 2 is the max number of slots
-                    slot_number = 2
-            except:
-                slot_number = result[0]
-            cursor.execute("""
-                UPDATE parking_info 
-                SET slot_status = 'occupied', plate_number = ? 
-                WHERE slot_number = ?
-            """, (sanitized_plate, slot_number))
-            conn.commit()
-            if self.event_queue:
-                self.event_queue.put(("match", self.camera_number, sanitized_plate))
-            print(f"Updated slot {slot_number} with plate {sanitized_plate}")
-        else:
-            print("No available slot.")
+
+        # clamp to your maximum slots (here assumed to be 2)
+        MAX_SLOTS = 2
+        target_slot = min(max(1, target_slot), MAX_SLOTS)
+
+        # fetch status of the target slot
+        cursor.execute("""
+                       SELECT slot_status, plate_number
+                       FROM parking_info
+                       WHERE slot_number = ?
+                       """, (target_slot,))
+        row = cursor.fetchone()
+
+        if not row:
+            print(f"Slot {target_slot} does not exist in the database.")
+            conn.close()
+            return
+
+        slot_status, existing_plate = row
+
+        # if already occupied...
+        if slot_status == 'occupied':
+            if existing_plate == sanitized_plate:
+                # same car, nothing to do
+                print(f"Plate {sanitized_plate} is already parked in slot {target_slot}.")
+            else:
+                # different car — block update
+                print(f"Slot {target_slot} is occupied by {existing_plate}; cannot assign to {sanitized_plate}.")
+            conn.close()
+            return
+
+        # slot is empty → occupy it
+        cursor.execute("""
+                       UPDATE parking_info
+                       SET slot_status  = 'occupied',
+                           plate_number = ?
+                       WHERE slot_number = ?
+                       """, (sanitized_plate, target_slot))
+        conn.commit()
+
+        if self.event_queue:
+            self.event_queue.put(("match", self.camera_number, sanitized_plate))
+
+        print(f"Assigned plate {sanitized_plate} to slot {target_slot}.")
         conn.close()
 
     def compare_plate_number(self, recognized_plate, camera_number):
