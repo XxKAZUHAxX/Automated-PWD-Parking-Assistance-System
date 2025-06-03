@@ -49,7 +49,23 @@ class VehicleLicensePlateSystem:
         MAX_SLOTS = 2
         target_slot = min(max(1, target_slot), MAX_SLOTS)
 
-        # fetch status of the target slot
+        # 1) Check if this plate already exists in ANY occupied slot (other than the target)
+        cursor.execute("""
+                       SELECT slot_number
+                       FROM parking_info
+                       WHERE slot_status = 'occupied'
+                         AND plate_number = ?
+                         AND slot_number != ?
+                       """, (sanitized_plate, target_slot))
+        duplicate_row = cursor.fetchone()
+        if duplicate_row:
+            existing_slot = duplicate_row[0]
+            print(
+                f"Plate {sanitized_plate} is already parked in slot {existing_slot}; cannot assign to slot {target_slot}.")
+            conn.close()
+            return
+
+        # 2) Fetch status of the target slot
         cursor.execute("""
                        SELECT slot_status, plate_number
                        FROM parking_info
@@ -64,18 +80,18 @@ class VehicleLicensePlateSystem:
 
         slot_status, existing_plate = row
 
-        # if already occupied...
+        # if target slot is already occupied...
         if slot_status == 'occupied':
             if existing_plate == sanitized_plate:
-                # same car, nothing to do
+                # same car in same slot → nothing to do
                 print(f"Plate {sanitized_plate} is already parked in slot {target_slot}.")
             else:
-                # different car — block update
+                # occupied by a different car → block
                 print(f"Slot {target_slot} is occupied by {existing_plate}; cannot assign to {sanitized_plate}.")
             conn.close()
             return
 
-        # slot is empty → occupy it
+        # 3) Slot is empty and no duplicates elsewhere → occupy it
         cursor.execute("""
                        UPDATE parking_info
                        SET slot_status  = 'occupied',
