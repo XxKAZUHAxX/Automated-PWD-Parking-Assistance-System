@@ -17,7 +17,7 @@ serial_port = 'COM4'
 
 vid_path = 'video/footage_5.mov'
 video_path_1 = 0
-video_path_2 = vid_path
+video_path_2 = 1
 
 # Plates = {'NBC1234', '123NPQ'}
 
