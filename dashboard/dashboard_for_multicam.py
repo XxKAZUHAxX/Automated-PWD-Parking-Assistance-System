@@ -15,8 +15,11 @@ DATABASE = working_dir + "/users.db"
 serial_port = 'COM4'
 # serial_port = '/dev/ttyACM1'     # Serial port for Raspberry Pi 5
 
+vid_path = 'video/footage_5.mov'
 video_path_1 = 0
-video_path_2 = 1
+video_path_2 = vid_path
+
+# Plates = {'NBC1234', '123NPQ'}
 
 class DashboardApp(ttk.Window):
     def __init__(self, theme="flatly"):
@@ -258,6 +261,7 @@ class MainPage(ttk.Frame):
                     """, (cam_no,))
                 status = cursor.fetchone()[0]
                 # send open command to Arduino
+                print(f"Sending Cam {cam_no} : OPEN")
                 cmd = f"{cam_no}:OPEN\n".encode()
                 self.serial_port.write(cmd)
             self.update_parking_tree()
